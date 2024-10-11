@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/styles.css">
+    <script type="application/javascript" src="/static/socket.io.min.js"></script>
+    <title>实时文本编辑器</title>
+</head>
+<body>
+    <div class="container">
+        <h1>实时文本编辑器</h1>
+        <textarea id="textInput" rows="10" cols="50" placeholder="在这里输入您的文本..."></textarea>
+        <div id="historyIcon" class="history-icon">&#x1F5D2;</div> <!-- 历史记录图标 -->
+        <div id="historyContainer" class="history-container" style="display: none;">
+            <h2>历史记录</h2>
+            <ul id="historyList"></ul>
+        </div>
+    </div>
+
+    <!-- 模态框 -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="close" id="modalClose">&times;</span>
+                <h2>历史记录详情</h2>
+            </div>
+            <div class="modal-body">
+                <p id="modalText"></p>
+            </div>
+            <button id="useButton">使用</button>
+            <button id="copyButton">复制</button>
+        </div>
+    </div>
+    <script>
+        // 连接到 Socket.IO 服务器
+        const socket = io();
+
+        // 确保在页面加载时请求当前文本内容
+        window.onload = function() {
+            socket.emit('get_current_text');
+        };
+
+        // 当接收到当前文本内容时，更新文本框的内容
+        socket.on('text_update', function(data) {
+            document.getElementById('textInput').value = data.text;
+            updateHistoryList(data.text);
+        });
+
+        // 当文本框内容发生变化时，发送更新至服务器
+        document.getElementById('textInput').addEventListener('input', function() {
+            const updatedText = this.value;
+            socket.emit('text_update', { text: updatedText });
+        });
+
+        // 更新历史记录显示
+        function updateHistoryList(text) {
+            const historyList = document.getElementById('historyList');
+            const listItem = document.createElement('li');
+            listItem.textContent = text;
+            listItem.onclick = function() {
+                showModal(text);
+            };
+            historyList.appendChild(listItem);
+        }
+
+        // 显示模态框
+        function showModal(text) {
+            document.getElementById('modalText').textContent = text;
+            document.getElementById('modal').style.display = "block";
+        }
+
+        // 关闭模态框
+        document.getElementById('modalClose').onclick = function() {
+            document.getElementById('modal').style.display = "none";
+        }
+
+        // 使用按钮点击事件
+        document.getElementById('useButton').onclick = function() {
+            const text = document.getElementById('modalText').textContent;
+            document.getElementById('textInput').value = text;
+            socket.emit('text_update', { text: text });
+            document.getElementById('modal').style.display = "none";
+        }
+
+        // 复制按钮点击事件
+        document.getElementById('copyButton').onclick = function() {
+            const text = document.getElementById('modalText').textContent;
+            navigator.clipboard.writeText(text).then(function() {
+                alert("文本已复制到剪贴板！");
+            }, function(err) {
+                alert("复制失败！复制需要在localhost或者带SSL的网站上使用");
+                console.error("复制失败: ", err);
+            });
+        }
+
+        // 显示或隐藏历史记录
+        document.getElementById('historyIcon').onclick = function() {
+            const historyContainer = document.getElementById('historyContainer');
+            historyContainer.style.display = historyContainer.style.display === "none" ? "block" : "none";
+        };
+    </script>
+</body>
+</html>
