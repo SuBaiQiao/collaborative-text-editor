@@ -1,5 +1,5 @@
 # collaborative-text-editor
-多端文件复制项目-Python
+多端文本复制项目-Python
 
 ### 下载项目
 ```bash
