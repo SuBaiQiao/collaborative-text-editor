@@ -10,6 +10,11 @@
 <body>
     <div class="container">
         <h1>实时文本编辑器</h1>
+        <div>
+            <input type="file" id="fileInput" />
+            <button onclick="uploadFile()">上传文件</button>
+        </div>
+        <ul id="file_list"></ul>
         <textarea id="textInput" rows="10" cols="50" placeholder="在这里输入您的文本..."></textarea>
         <div id="historyIcon" class="history-icon">&#x1F5D2;</div> <!-- 历史记录图标 -->
         <div id="historyContainer" class="history-container" style="display: none;">
@@ -33,12 +38,41 @@
         </div>
     </div>
     <script>
+        // 文件上传函数
+        function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            if (file) {
+                const formData = new FormData();
+                formData.append('file', file);
+                fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                }).then(response => {
+                    if (response.ok) {
+                        alert('文件上传成功');
+                    } else {
+                        alert('文件上传失败');
+                    }
+                    fileInput.value = '';
+                });
+            }
+        }
+
+        // 文件下载函数
+        function downloadFile(filename) {
+            if (filename) {
+                window.location.href = '/download/' + filename;
+            }
+        }
+
         // 连接到 Socket.IO 服务器
         const socket = io();
 
         // 确保在页面加载时请求当前文本内容
         window.onload = function() {
             socket.emit('get_current_text');
+            socket.emit('file_list_update');
         };
 
         // 当接收到当前文本内容时，更新文本框的内容
@@ -47,11 +81,29 @@
             updateHistoryList(data.text);
         });
 
+        // 当接收到当前文件列表时，更新文件列表内容
+        socket.on('file_list_update', function(data) {
+            updateFileList(data.file_list);
+        });
+
         // 当文本框内容发生变化时，发送更新至服务器
         document.getElementById('textInput').addEventListener('input', function() {
             const updatedText = this.value;
             socket.emit('text_update', { text: updatedText });
         });
+
+        function updateFileList(list) {
+            let fileList = document.getElementById('file_list')
+            fileList.innerHTML = '';
+            for (let i = 0; i < list.length; i++) {
+                let file = document.createElement('li');
+                file.textContent = list[i];
+                file.onclick = function() {
+                    downloadFile(list[i]);
+                }
+                fileList.appendChild(file);
+            }
+        }
 
         // 更新历史记录显示
         function updateHistoryList(text) {

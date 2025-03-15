@@ -118,6 +118,29 @@ button:hover {
     background-color: #0056b3;
 }
 
+#file_list {
+    list-style-type: none;
+    padding: 10px;
+    margin: 10px 0;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+}
+
+#file_list li {
+    padding: 8px;
+    margin: 4px 0;
+    background-color: white;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    transition: background-color 0.3s ease;
+}
+
+#file_list li:hover {
+    color: #0056b3;
+    cursor: pointer;
+}
+
 @media (max-width: 600px) {
     body {
         height: calc(100vh - 160px);
