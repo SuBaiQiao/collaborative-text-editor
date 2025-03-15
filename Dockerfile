@@ -1,4 +1,4 @@
-FROM python:3.13.0
+FROM python:3.10
 
 COPY pip.conf /root/.pip/pip.conf
 RUN mkdir -p /code
