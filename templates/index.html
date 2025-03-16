@@ -15,7 +15,7 @@
             <button onclick="uploadFile()">上传文件</button>
         </div>
         <ul id="file_list"></ul>
-        <textarea id="textInput" rows="10" cols="50" placeholder="在这里输入您的文本..."></textarea>
+        <textarea id="textInput" rows="10" cols="50" placeholder="在这里输入您的文本..." onpaste="handleImagePaste(event)"></textarea>
         <div id="historyIcon" class="history-icon">&#x1F5D2;</div> <!-- 历史记录图标 -->
         <div id="historyContainer" class="history-container" style="display: none;">
             <h2>历史记录</h2>
@@ -38,6 +38,20 @@
         </div>
     </div>
     <script>
+        function formatUploadDate(dateStr) {
+            if (!dateStr) {
+                return ''
+            }
+            const date = new Date(dateStr);
+            const year = date.getUTCFullYear();
+            const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
+            const day = date.getUTCDate().toString().padStart(2, '0');
+            const hours = date.getUTCHours().toString().padStart(2, '0');
+            const minutes = date.getUTCMinutes().toString().padStart(2, '0');
+            const seconds = date.getUTCSeconds().toString().padStart(2, '0');
+            return `${year}_${month}_${day}_${hours}_${minutes}_${seconds}`;
+        }
+
         // 文件上传函数
         function uploadFile() {
             const fileInput = document.getElementById('fileInput');
@@ -144,6 +158,28 @@
                 alert("复制失败！复制需要在localhost或者带SSL的网站上使用");
                 console.error("复制失败: ", err);
             });
+        }
+
+                // 处理图片粘贴
+        function handleImagePaste(e) {
+            const items = (e.clipboardData || window.clipboardData).items;      
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    const blob = items[i].getAsFile();
+                    const formData = new FormData();
+                    formData.append('file', blob, `pasted_image_${formatUploadDate(new Date())}.png`);
+                    fetch('/upload', {
+                        method: 'POST',
+                        body: formData
+                    }).then(response => {
+                        if (response.ok) {
+                            alert('图片上传成功');
+                        } else {
+                            alert('图片上传失败');
+                        }
+                    });
+                }
+            }
         }
 
         // 显示或隐藏历史记录
