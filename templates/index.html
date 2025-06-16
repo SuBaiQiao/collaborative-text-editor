@@ -4,6 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/static/styles.css">
+    <style>
+        .progress-container {
+            width: 100%;
+            margin-top: 10px;
+            background-color: #f3f3f3;
+            border-radius: 4px;
+        }
+        .progress-bar {
+            height: 20px;
+            background-color: #4CAF50;
+            width: 0%;
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+        #progressText {
+            display: block;
+            text-align: center;
+            line-height: 20px;
+            color: black;
+        }
+    </style>
     <script type="application/javascript" src="/static/socket.io.min.js"></script>
     <title>实时文本编辑器</title>
 </head>
@@ -12,7 +33,12 @@
         <h1>实时文本编辑器</h1>
         <div>
             <input type="file" id="fileInput" />
-            <button onclick="uploadFile()">上传文件</button>
+            <button id="uploadBtn" onclick="uploadFile()">上传文件</button>
+            <button id="pauseBtn" onclick="cancelUpload()" style="display:none;">取消上传</button>
+            <div class="progress-container">
+                <div id="progressBar" class="progress-bar"></div>
+                <span id="progressText">0%</span>
+            </div>
         </div>
         <ul id="file_list"></ul>
         <textarea id="textInput" rows="10" cols="50" placeholder="在这里输入您的文本..." onpaste="handleImagePaste(event)"></textarea>
@@ -52,25 +78,74 @@
             return `${year}_${month}_${day}_${hours}_${minutes}_${seconds}`;
         }
 
+        // 全局变量存储上传状态
+        let uploadXHR = null;
+        let isUploading = false;
+        
         // 文件上传函数
         function uploadFile() {
             const fileInput = document.getElementById('fileInput');
+            if (fileInput.files.length === 0) {
+                alert('请选择要上传的文件');
+                return;
+            }
             const file = fileInput.files[0];
             if (file) {
                 const formData = new FormData();
                 formData.append('file', file);
-                fetch('/upload', {
-                    method: 'POST',
-                    body: formData
-                }).then(response => {
-                    if (response.ok) {
+                
+                // 切换按钮状态
+                document.getElementById('uploadBtn').style.display = 'none';
+                document.getElementById('pauseBtn').style.display = 'inline-block';
+                isUploading = true;
+                
+                uploadXHR = new XMLHttpRequest();
+                uploadXHR.upload.addEventListener('progress', function(e) {
+                    if (e.lengthComputable) {
+                        const percentComplete = Math.round((e.loaded / e.total) * 100);
+                        document.getElementById('progressBar').style.width = percentComplete + '%';
+                        document.getElementById('progressText').textContent = percentComplete + '%';
+                        if (percentComplete === 100) {
+                            document.getElementById('progressText').textContent = '文件上传完成，正在合并文件内容';
+                        }
+                    }
+                });
+                
+                uploadXHR.addEventListener('load', function() {
+                    if (uploadXHR.status === 200) {
+                        document.getElementById('progressText').textContent = '文件上传成功';
                         alert('文件上传成功');
                     } else {
+                        document.getElementById('progressText').textContent = '文件上传失败';
                         alert('文件上传失败');
                     }
-                    fileInput.value = '';
+                    resetUploadState();
                 });
+                
+                uploadXHR.addEventListener('error', function() {
+                    alert('上传出错');
+                    resetUploadState();
+                });
+                
+                uploadXHR.addEventListener('abort', function() {
+                    resetUploadState();
+                });
+                
+                uploadXHR.open('POST', '/upload');
+                uploadXHR.send(formData);
             }
+        }
+
+        
+        // 重置上传状态
+        function resetUploadState() {
+            document.getElementById('fileInput').value = '';
+            document.getElementById('progressBar').style.width = '0%';
+            document.getElementById('progressText').textContent = '0%';
+            document.getElementById('uploadBtn').style.display = 'inline-block';
+            document.getElementById('pauseBtn').style.display = 'none';
+            uploadXHR = null;
+            isUploading = false;
         }
 
         // 文件下载函数
@@ -118,6 +193,15 @@
                 fileList.appendChild(file);
             }
         }
+        
+        // 暂停上传函数
+        function cancelUpload() {
+            if (uploadXHR && isUploading) {
+                uploadXHR.abort();
+                isUploading = false;
+                alert('上传已取消');
+            }
+        }
 
         // 更新历史记录显示
         function updateHistoryList(text) {
@@ -160,7 +244,7 @@
             });
         }
 
-                // 处理图片粘贴
+        // 处理图片粘贴
         function handleImagePaste(e) {
             const items = (e.clipboardData || window.clipboardData).items;      
             for (let i = 0; i < items.length; i++) {
