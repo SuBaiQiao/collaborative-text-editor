@@ -251,9 +251,9 @@
                             body: formData
                         }).then(response => {
                             if (response.ok) {
-                                alert('图片上传成功');
+                                antd.message.success('图片上传成功')
                             } else {
-                                alert('图片上传失败');
+                                antd.message.error('图片上传失败')
                             }
                         });
                     }
