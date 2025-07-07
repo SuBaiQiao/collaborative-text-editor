@@ -87,7 +87,7 @@
             const uploadProgress = ref(0); // 新增：记录上传进度
             let cancelTokenSource = null;   // 存储取消 token 的变量
 
-            function formatUploadDate(dateStr) {
+            const formatUploadDate = (dateStr) => {
                 if (!dateStr) {
                     return ''
                 }
@@ -156,13 +156,13 @@
             }
 
             // 文件下载函数
-            function downloadFile(filename) {
+            const downloadFile = (filename) => {
                 if (filename) {
                     window.location.href = '/download/' + filename;
                 }
             }
 
-            function cancelUpload() {
+            const cancelUpload = () => {
                 if (isUploading.value && cancelTokenSource) {
                     cancelTokenSource.cancel('用户取消上传');
                     cancelTokenSource = null;
@@ -197,7 +197,7 @@
                 socket.emit('text_update', {text: textInput.value});
             }
 
-            function updateFileList(list) {
+            const updateFileList = (list) => {
                 let fileList = document.getElementById('file_list')
                 fileList.innerHTML = '';
                 for (let i = 0; i < list.length; i++) {
@@ -211,7 +211,7 @@
             }
 
             // 显示模态框
-            function showModal(text) {
+            const showModal = (text) => {
                 modalVisible.value = true;
                 modalText.value = text;
             }
@@ -230,16 +230,16 @@
 
             // 复制按钮点击事件
             const copyButtonHandler = () => {
-                navigator.clipboard.writeText(modalText.value).then(function () {
-                    alert("文本已复制到剪贴板！");
-                }, function (err) {
-                    alert("复制失败！复制需要在localhost或者带SSL的网站上使用");
+                navigator.clipboard.writeText(modalText.value).then(() => {
+                    antd.message.success('文本已复制到剪贴板！')
+                }, (err) => {
+                    antd.message.error('复制失败！复制需要在localhost或者带SSL的网站上使用！')
                     console.error("复制失败: ", err);
                 });
             }
 
             // 处理图片粘贴
-            function handleImagePaste(e) {
+            const handleImagePaste = (e) => {
                 const items = (e.clipboardData || window.clipboardData).items;
                 for (let i = 0; i < items.length; i++) {
                     if (items[i].type.indexOf('image') !== -1) {
