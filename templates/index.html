@@ -3,274 +3,306 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="/static/styles.css">
-    <style>
-        .progress-container {
-            width: 100%;
-            margin-top: 10px;
-            background-color: #f3f3f3;
-            border-radius: 4px;
-        }
-        .progress-bar {
-            height: 20px;
-            background-color: #4CAF50;
-            width: 0%;
-            border-radius: 4px;
-            transition: width 0.3s;
-        }
-        #progressText {
-            display: block;
-            text-align: center;
-            line-height: 20px;
-            color: black;
-        }
-    </style>
-    <script type="application/javascript" src="/static/socket.io.min.js"></script>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <script type="application/javascript" src="/static/common/socket/socket.io.min.js"></script>
     <title>实时文本编辑器</title>
+    <script src="/static/common/vue/vue.global.js"></script>
+    <script src="/static/common/dayjs/dayjs.min.js"></script>
+    <script src="/static/common/dayjs/customParseFormat.js"></script>
+    <script src="/static/common/dayjs/weekday.js"></script>
+    <script src="/static/common/dayjs/localeData.js"></script>
+    <script src="/static/common/dayjs/weekOfYear.js"></script>
+    <script src="/static/common/dayjs/weekYear.js"></script>
+    <script src="/static/common/dayjs/advancedFormat.js"></script>
+    <script src="/static/common/dayjs/quarterOfYear.js"></script>
+    <script src="/static/common/ant-design-vue/antd.js"></script>
+    <script src="/static/common/axios/axios.min.js"></script>
+    <link rel="stylesheet" href="/static/common/ant-design-vue/reset.css">
 </head>
 <body>
+<div id="app">
     <div class="container">
         <h1>实时文本编辑器</h1>
         <div>
-            <input type="file" id="fileInput" />
-            <button id="uploadBtn" onclick="uploadFile()">上传文件</button>
-            <button id="pauseBtn" onclick="cancelUpload()" style="display:none;">取消上传</button>
-            <div class="progress-container">
-                <div id="progressBar" class="progress-bar"></div>
-                <span id="progressText">0%</span>
+            <div>
+                <a-upload-dragger name="file" :file-list="fileList" :multiple="true" action="/upload"
+                                  :before-upload="beforeUpload" @remove="handleRemove">
+                    <p class="ant-upload-text">点击选择文件进行上传</p>
+                    <p class="ant-upload-hint">
+                        支持单个或批量上传。严禁上传公司数据或其他违禁文件。
+                    </p>
+                </a-upload-dragger>
             </div>
+            <a-button type="primary" @click="uploadFile" v-if="!isUploading && fileList.length > 0">上传文件</a-button>
+            <a-button type="primary" danger @click="cancelUpload" v-if="isUploading">取消上传</a-button>
+        </div>
+        <div class="progress-container" v-if="isUploading">
+            <div class="progress-bar" :style="{ width: uploadProgress + '%' }"></div>
+            <span class="progress-text">{{ uploadProgress }}%</span>
         </div>
         <ul id="file_list"></ul>
-        <textarea id="textInput" rows="10" cols="50" placeholder="在这里输入您的文本..." onpaste="handleImagePaste(event)"></textarea>
-        <div id="historyIcon" class="history-icon">&#x1F5D2;</div> <!-- 历史记录图标 -->
-        <div id="historyContainer" class="history-container" style="display: none;">
+{#        <textarea id="textInput" rows="10" cols="50" placeholder="在这里输入您的文本..."#}
+{#                  onpaste="handleImagePaste(event)" @change="textInputChange"></textarea>#}
+        <a-textarea onpaste="handleImagePaste(event)" v-model:value="textInput"
+                    :rows="10" :cols="50" placeholder="在这里输入您的文本..."
+                    @change="textInputChange"></a-textarea>
+        <div id="historyIcon" @click="historyIconHandler" class="history-icon">&#x1F5D2;</div> <!-- 历史记录图标 -->
+        <div id="historyContainer" class="history-container" style="display: none;" @click="historyIconHandler">
             <h2>历史记录</h2>
-            <ul id="historyList"></ul>
+            <ul id="historyList">
+                <li v-for="(text, index) in textHistoryList" :key="index" @click="showModal(text)">
+                    {{ text }}
+                </li>
+            </ul>
         </div>
     </div>
-
     <!-- 模态框 -->
-    <div id="modal" class="modal">
+    <div v-if="modalVisible" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <span class="close" id="modalClose">&times;</span>
+                <span class="close" id="modalClose" @click="modalCloseHandler">&times;</span>
                 <h2>历史记录详情</h2>
             </div>
             <div class="modal-body">
-                <p id="modalText"></p>
+                <p id="modalText">
+                    {{ modalText }}
+                </p>
             </div>
-            <button id="useButton">使用</button>
-            <button id="copyButton">复制</button>
+            <a-button type="primary" @click="useButtonHandler">使用</a-button>
+            <a-button type="primary" @click="copyButtonHandler">复制</a-button>
         </div>
     </div>
-    <script>
-        function formatUploadDate(dateStr) {
-            if (!dateStr) {
-                return ''
-            }
-            const date = new Date(dateStr);
-            const year = date.getUTCFullYear();
-            const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
-            const day = date.getUTCDate().toString().padStart(2, '0');
-            const hours = date.getUTCHours().toString().padStart(2, '0');
-            const minutes = date.getUTCMinutes().toString().padStart(2, '0');
-            const seconds = date.getUTCSeconds().toString().padStart(2, '0');
-            return `${year}_${month}_${day}_${hours}_${minutes}_${seconds}`;
-        }
+</div>
+<script>
+    const {createApp, ref, onMounted} = Vue
 
-        // 全局变量存储上传状态
-        let uploadXHR = null;
-        let isUploading = false;
-        
-        // 文件上传函数
-        function uploadFile() {
-            const fileInput = document.getElementById('fileInput');
-            if (fileInput.files.length === 0) {
-                alert('请选择要上传的文件');
-                return;
+    createApp({
+        setup() {
+            const isUploading = ref(false)
+            const modalVisible = ref(false)
+            const fileList = ref([])
+            const textHistoryList = ref([])
+            const textInput = ref('')
+            const modalText = ref('')
+            const uploadProgress = ref(0); // 新增：记录上传进度
+            let cancelTokenSource = null;   // 存储取消 token 的变量
+
+            function formatUploadDate(dateStr) {
+                if (!dateStr) {
+                    return ''
+                }
+                const date = new Date(dateStr);
+                const year = date.getUTCFullYear();
+                const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
+                const day = date.getUTCDate().toString().padStart(2, '0');
+                const hours = date.getUTCHours().toString().padStart(2, '0');
+                const minutes = date.getUTCMinutes().toString().padStart(2, '0');
+                const seconds = date.getUTCSeconds().toString().padStart(2, '0');
+                return `${year}_${month}_${day}_${hours}_${minutes}_${seconds}`;
             }
-            const file = fileInput.files[0];
-            if (file) {
-                const formData = new FormData();
-                formData.append('file', file);
-                
-                // 切换按钮状态
-                document.getElementById('uploadBtn').style.display = 'none';
-                document.getElementById('pauseBtn').style.display = 'inline-block';
-                isUploading = true;
-                
-                uploadXHR = new XMLHttpRequest();
-                uploadXHR.upload.addEventListener('progress', function(e) {
-                    if (e.lengthComputable) {
-                        const percentComplete = Math.round((e.loaded / e.total) * 100);
-                        document.getElementById('progressBar').style.width = percentComplete + '%';
-                        document.getElementById('progressText').textContent = percentComplete + '%';
-                        if (percentComplete === 100) {
-                            document.getElementById('progressText').textContent = '文件上传完成，正在合并文件内容';
+
+            // 文件上传函数
+            const uploadFile = async () => {
+                if (fileList.value.length === 0) {
+                    antd.message.error('请选择要上传的文件');
+                    return;
+                }
+                isUploading.value = true;
+                uploadProgress.value = 0;
+                // 创建 CancelToken 源
+                cancelTokenSource = axios.CancelToken.source();
+
+                try {
+                    for (const file of fileList.value) {
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        await axios.post('/upload', formData, {
+                            headers: {
+                                'Content-Type': 'multipart/form-data'
+                            },
+                            cancelToken: cancelTokenSource.token, // 添加 cancelToken
+                            onUploadProgress: function (progressEvent) {
+                                if (progressEvent.lengthComputable) {
+                                    const percent = Math.round(
+                                        (progressEvent.loaded * 100) / progressEvent.total
+                                    );
+                                    uploadProgress.value = percent;
+                                    if (percent === 100) {
+                                        // 上传完成后移除该文件
+                                        fileList.value = fileList.value.filter(f => f !== file);
+                                        uploadProgress.value = 0;
+                                    }
+                                }
+                            }
+                        })
+
+                        // 如果取消了，不要再继续执行
+                        if (axios.isCancel(cancelTokenSource.token.reason)) {
+                            break;
                         }
                     }
-                });
-                
-                uploadXHR.addEventListener('load', function() {
-                    if (uploadXHR.status === 200) {
-                        document.getElementById('progressText').textContent = '文件上传成功';
-                        alert('文件上传成功');
+                    antd.message.success('所有文件上传完成')
+                    socket.emit('file_list_update'); // 更新文件列表
+                } catch (error) {
+                    if (axios.isCancel(error)) {
+                        antd.message.error('上传已取消');
                     } else {
-                        document.getElementById('progressText').textContent = '文件上传失败';
-                        alert('文件上传失败');
+                        antd.message.error('文件上传失败');
                     }
-                    resetUploadState();
-                });
-                
-                uploadXHR.addEventListener('error', function() {
-                    alert('上传出错');
-                    resetUploadState();
-                });
-                
-                uploadXHR.addEventListener('abort', function() {
-                    resetUploadState();
-                });
-                
-                uploadXHR.open('POST', '/upload');
-                uploadXHR.send(formData);
-            }
-        }
-
-        
-        // 重置上传状态
-        function resetUploadState() {
-            document.getElementById('fileInput').value = '';
-            document.getElementById('progressBar').style.width = '0%';
-            document.getElementById('progressText').textContent = '0%';
-            document.getElementById('uploadBtn').style.display = 'inline-block';
-            document.getElementById('pauseBtn').style.display = 'none';
-            uploadXHR = null;
-            isUploading = false;
-        }
-
-        // 文件下载函数
-        function downloadFile(filename) {
-            if (filename) {
-                window.location.href = '/download/' + filename;
-            }
-        }
-
-        // 连接到 Socket.IO 服务器
-        const socket = io();
-
-        // 确保在页面加载时请求当前文本内容
-        window.onload = function() {
-            socket.emit('get_current_text');
-            socket.emit('file_list_update');
-        };
-
-        // 当接收到当前文本内容时，更新文本框的内容
-        socket.on('text_update', function(data) {
-            document.getElementById('textInput').value = data.text;
-            updateHistoryList(data.text);
-        });
-
-        // 当接收到当前文件列表时，更新文件列表内容
-        socket.on('file_list_update', function(data) {
-            updateFileList(data.file_list);
-        });
-
-        // 当文本框内容发生变化时，发送更新至服务器
-        document.getElementById('textInput').addEventListener('input', function() {
-            const updatedText = this.value;
-            socket.emit('text_update', { text: updatedText });
-        });
-
-        function updateFileList(list) {
-            let fileList = document.getElementById('file_list')
-            fileList.innerHTML = '';
-            for (let i = 0; i < list.length; i++) {
-                let file = document.createElement('li');
-                file.textContent = list[i];
-                file.onclick = function() {
-                    downloadFile(list[i]);
+                } finally {
+                    isUploading.value = false;
+                    uploadProgress.value = 0;
                 }
-                fileList.appendChild(file);
             }
-        }
-        
-        // 暂停上传函数
-        function cancelUpload() {
-            if (uploadXHR && isUploading) {
-                uploadXHR.abort();
-                isUploading = false;
-                alert('上传已取消');
+
+            // 文件下载函数
+            function downloadFile(filename) {
+                if (filename) {
+                    window.location.href = '/download/' + filename;
+                }
             }
-        }
 
-        // 更新历史记录显示
-        function updateHistoryList(text) {
-            const historyList = document.getElementById('historyList');
-            const listItem = document.createElement('li');
-            listItem.textContent = text;
-            listItem.onclick = function() {
-                showModal(text);
-            };
-            historyList.appendChild(listItem);
-        }
+            function cancelUpload() {
+                if (isUploading.value && cancelTokenSource) {
+                    cancelTokenSource.cancel('用户取消上传');
+                    cancelTokenSource = null;
+                    isUploading.value = false;
+                    uploadProgress.value = 0;
+                }
+            }
 
-        // 显示模态框
-        function showModal(text) {
-            document.getElementById('modalText').textContent = text;
-            document.getElementById('modal').style.display = "block";
-        }
 
-        // 关闭模态框
-        document.getElementById('modalClose').onclick = function() {
-            document.getElementById('modal').style.display = "none";
-        }
+            // 连接到 Socket.IO 服务器
+            const socket = io();
 
-        // 使用按钮点击事件
-        document.getElementById('useButton').onclick = function() {
-            const text = document.getElementById('modalText').textContent;
-            document.getElementById('textInput').value = text;
-            socket.emit('text_update', { text: text });
-            document.getElementById('modal').style.display = "none";
-        }
+            // 确保在页面加载时请求当前文本内容
+            onMounted(() => {
+                socket.emit('get_current_text');
+                socket.emit('file_list_update');
+            })
 
-        // 复制按钮点击事件
-        document.getElementById('copyButton').onclick = function() {
-            const text = document.getElementById('modalText').textContent;
-            navigator.clipboard.writeText(text).then(function() {
-                alert("文本已复制到剪贴板！");
-            }, function(err) {
-                alert("复制失败！复制需要在localhost或者带SSL的网站上使用");
-                console.error("复制失败: ", err);
+            // 当接收到当前文本内容时，更新文本框的内容
+            socket.on('text_update', function (data) {
+                textInput.value = data.text;
+                textHistoryList.value.push(data.text)
             });
-        }
 
-        // 处理图片粘贴
-        function handleImagePaste(e) {
-            const items = (e.clipboardData || window.clipboardData).items;      
-            for (let i = 0; i < items.length; i++) {
-                if (items[i].type.indexOf('image') !== -1) {
-                    const blob = items[i].getAsFile();
-                    const formData = new FormData();
-                    formData.append('file', blob, `pasted_image_${formatUploadDate(new Date())}.png`);
-                    fetch('/upload', {
-                        method: 'POST',
-                        body: formData
-                    }).then(response => {
-                        if (response.ok) {
-                            alert('图片上传成功');
-                        } else {
-                            alert('图片上传失败');
-                        }
-                    });
+            // 当接收到当前文件列表时，更新文件列表内容
+            socket.on('file_list_update', function (data) {
+                updateFileList(data.file_list);
+            });
+
+            // 当文本框内容发生变化时，发送更新至服务器
+            const textInputChange = () => {
+                socket.emit('text_update', {text: textInput.value});
+            }
+
+            function updateFileList(list) {
+                let fileList = document.getElementById('file_list')
+                fileList.innerHTML = '';
+                for (let i = 0; i < list.length; i++) {
+                    let file = document.createElement('li');
+                    file.textContent = list[i];
+                    file.onclick = function () {
+                        downloadFile(list[i]);
+                    }
+                    fileList.appendChild(file);
                 }
             }
-        }
 
-        // 显示或隐藏历史记录
-        document.getElementById('historyIcon').onclick = function() {
-            const historyContainer = document.getElementById('historyContainer');
-            historyContainer.style.display = historyContainer.style.display === "none" ? "block" : "none";
-        };
-    </script>
+            // 显示模态框
+            function showModal(text) {
+                modalVisible.value = true;
+                modalText.value = text;
+            }
+
+            // 关闭模态框
+            const modalCloseHandler = () => {
+                modalVisible.value = false
+            }
+
+            // 使用按钮点击事件
+            const useButtonHandler = () => {
+                textInput.value = modalText.value;
+                socket.emit('text_update', {text: modalText.value});
+                modalCloseHandler()
+            }
+
+            // 复制按钮点击事件
+            const copyButtonHandler = () => {
+                navigator.clipboard.writeText(modalText.value).then(function () {
+                    alert("文本已复制到剪贴板！");
+                }, function (err) {
+                    alert("复制失败！复制需要在localhost或者带SSL的网站上使用");
+                    console.error("复制失败: ", err);
+                });
+            }
+
+            // 处理图片粘贴
+            function handleImagePaste(e) {
+                const items = (e.clipboardData || window.clipboardData).items;
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].type.indexOf('image') !== -1) {
+                        const blob = items[i].getAsFile();
+                        const formData = new FormData();
+                        formData.append('file', blob, `pasted_image_${formatUploadDate(new Date())}.png`);
+                        fetch('/upload', {
+                            method: 'POST',
+                            body: formData
+                        }).then(response => {
+                            if (response.ok) {
+                                alert('图片上传成功');
+                            } else {
+                                alert('图片上传失败');
+                            }
+                        });
+                    }
+                }
+            }
+
+            // 显示或隐藏历史记录
+            const historyIconHandler = () => {
+                const historyContainer = document.getElementById('historyContainer');
+                historyContainer.style.display = historyContainer.style.display === "none" ? "block" : "none";
+            }
+
+            const handleRemove = file => {
+                const index = fileList.value.indexOf(file);
+                const newFileList = fileList.value.slice();
+                newFileList.splice(index, 1);
+                fileList.value = newFileList;
+            };
+
+            const beforeUpload = file => {
+                fileList.value = [...(fileList.value || []), file];
+                return false;
+            };
+
+            return {
+                fileList,
+                textHistoryList,
+                textInput,
+                modalText,
+                isUploading,
+                uploadProgress,
+                modalVisible,
+                formatUploadDate,
+                uploadFile,
+                downloadFile,
+                updateFileList,
+                cancelUpload,
+                showModal,
+                handleImagePaste,
+                textInputChange,
+                historyIconHandler,
+                useButtonHandler,
+                copyButtonHandler,
+                modalCloseHandler,
+                handleRemove,
+                beforeUpload
+            }
+        }
+    }).use(antd).mount('#app')
+</script>
 </body>
 </html>
