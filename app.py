@@ -112,12 +112,15 @@ def delete_file(filename):
     return 'File deleted successfully', 200
 
 
+# 为什么要放外面？因为使用gunicorn启动的时候是不会执行main方法的
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+if not os.path.exists(TEXT_FOLDER):
+    os.makedirs(TEXT_FOLDER)
+# remove_all_files(UPLOAD_FOLDER)
+load_text(TEXT_FOLDER, TEXT_FILE_NAME)
+load_all_files(UPLOAD_FOLDER)
+
+
 if __name__ == '__main__':
-    if not os.path.exists(UPLOAD_FOLDER):
-        os.makedirs(UPLOAD_FOLDER)
-    if not os.path.exists(TEXT_FOLDER):
-        os.makedirs(TEXT_FOLDER)
-    # remove_all_files(UPLOAD_FOLDER)
-    load_text(TEXT_FOLDER, TEXT_FILE_NAME)
-    load_all_files(UPLOAD_FOLDER)
     socketio.run(app, host='0.0.0.0', port=8080, debug=False, allow_unsafe_werkzeug=True)

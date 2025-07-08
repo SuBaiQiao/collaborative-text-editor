@@ -27,9 +27,9 @@ docker build -t collaborative-text-editor:1.0 .
 ```
 镜像打包完成后使用`docker run`命令进行运行
 
-注意：18080是我本地的端口号，可以根据自己的端口号进行修改
+注意：18080是我本地的端口号，可以根据自己的端口号进行修改；-v 本地路径:容器内路径；--restart=always 容器自动重启(除非手动停止了容器)
 ```bash
-docker run -id --name collaborative-text-editor -p 18080:8080 collaborative-text-editor:1.0
+docker run -id --name collaborative-text-editor --restart=always -p 18080:8080 -v /C/Data/files/collaborative-text-editor/data:/code/data -v /C/Data/files/collaborative-text-editor/uploads:/code/uploads collaborative-text-editor:1.0
 ```
 
 运行完成后网页访问`http://localhost:18080/` 即可
