@@ -41,8 +41,6 @@
             <span class="progress-text">{{ uploadProgress }}%</span>
         </div>
         <ul id="file_list"></ul>
-{#        <textarea id="textInput" rows="10" cols="50" placeholder="在这里输入您的文本..."#}
-{#                  onpaste="handleImagePaste(event)" @change="textInputChange"></textarea>#}
         <a-textarea onpaste="handleImagePaste(event)" v-model:value="textInput"
                     :rows="10" :cols="50" placeholder="在这里输入您的文本..."
                     @change="textInputChange"></a-textarea>

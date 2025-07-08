@@ -1,7 +1,7 @@
-from flask import Flask, render_template, request, send_file
-from flask_socketio import SocketIO
 import os
-import datetime
+
+from flask import Flask, request, send_file
+from flask_socketio import SocketIO
 
 app = Flask(__name__)
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 900
@@ -28,7 +28,7 @@ def remove_all_files(directory):
 
 @app.route('/')
 def index():
-    return render_template('index.html', t=int(datetime.datetime.now().timestamp() * 1000))
+    return send_file('templates/index.html')
 
 
 @socketio.on('text_update')
