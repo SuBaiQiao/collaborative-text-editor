@@ -40,7 +40,13 @@
             <div class="progress-bar" :style="{ width: uploadProgress + '%' }"></div>
             <span class="progress-text">{{ uploadProgress }}%</span>
         </div>
-        <ul id="file_list"></ul>
+        <div class="file_list">
+            <a-flex class="file-item" v-for="(filename, index) in uploadFileList" :key="index" justify="space-between"
+                    align="flex-start">
+                <a-button type="link" @click="downloadFile(filename)">{{ filename }}</a-button>
+                <a-button type="link" danger @click="deleteFile(filename)">删除</a-button>
+            </a-flex>
+        </div>
         <a-textarea onpaste="handleImagePaste(event)" v-model:value="textInput"
                     :rows="10" :cols="50" placeholder="在这里输入您的文本..."
                     @change="textInputChange"></a-textarea>
@@ -66,8 +72,10 @@
                     {{ modalText }}
                 </p>
             </div>
-            <a-button type="primary" @click="useButtonHandler">使用</a-button>
-            <a-button type="primary" @click="copyButtonHandler">复制</a-button>
+            <a-space>
+                <a-button type="primary" @click="useButtonHandler">使用</a-button>
+                <a-button type="primary" @click="copyButtonHandler">复制</a-button>
+            </a-space>
         </div>
     </div>
 </div>
@@ -83,6 +91,7 @@
             const modalText = ref('')
             const uploadProgress = ref(0); // 新增：记录上传进度
             let cancelTokenSource = null;   // 存储取消 token 的变量
+            const uploadFileList = ref([])
 
             const formatUploadDate = (dateStr) => {
                 if (!dateStr) {
@@ -186,25 +195,12 @@
 
             // 当接收到当前文件列表时，更新文件列表内容
             socket.on('file_list_update', function (data) {
-                updateFileList(data.file_list);
+                uploadFileList.value = data.file_list
             });
 
             // 当文本框内容发生变化时，发送更新至服务器
             const textInputChange = () => {
                 socket.emit('text_update', {text: textInput.value});
-            }
-
-            const updateFileList = (list) => {
-                let fileList = document.getElementById('file_list')
-                fileList.innerHTML = '';
-                for (let i = 0; i < list.length; i++) {
-                    let file = document.createElement('li');
-                    file.textContent = list[i];
-                    file.onclick = function () {
-                        downloadFile(list[i]);
-                    }
-                    fileList.appendChild(file);
-                }
             }
 
             // 显示模态框
@@ -275,8 +271,19 @@
                 return false;
             };
 
+            const deleteFile = (filename) => {
+                fetch('/delete/' + filename).then(response => {
+                    if (response.ok) {
+                        antd.message.success('文件删除成功')
+                    } else {
+                        antd.message.error('文件删除失败')
+                    }
+                });
+            }
+
             return {
                 fileList,
+                uploadFileList,
                 textHistoryList,
                 textInput,
                 modalText,
@@ -286,7 +293,6 @@
                 formatUploadDate,
                 uploadFile,
                 downloadFile,
-                updateFileList,
                 cancelUpload,
                 showModal,
                 handleImagePaste,
@@ -296,6 +302,7 @@
                 copyButtonHandler,
                 modalCloseHandler,
                 handleRemove,
+                deleteFile,
                 beforeUpload
             }
         }

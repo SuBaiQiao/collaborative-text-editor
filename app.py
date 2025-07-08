@@ -11,6 +11,12 @@ socketio = SocketIO(app, ping_timeout=900, ping_interval=300)
 UPLOAD_FOLDER = 'uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
+# 文本持久化存储
+TEXT_FOLDER = 'data'
+app.config['TEXT_FOLDER'] = TEXT_FOLDER
+TEXT_FILE_NAME = 'content.txt'
+app.config['TEXT_FILE_NAME'] = TEXT_FILE_NAME
+
 # 存储文本历史记录的列表
 text_history = []
 file_list = []
@@ -26,6 +32,21 @@ def remove_all_files(directory):
             print(f"Error deleting {file_path}: {e}")
 
 
+def load_all_files(directory):
+    for filename in os.listdir(directory):
+        file_list.append(filename)
+
+
+def load_text(directory, filename):
+    file = os.path.join(directory, filename)
+    text = ''
+    if os.path.exists(file):
+        with open(file, 'r', encoding='utf-8') as f:
+            text = f.read()
+        f.close()
+    text_history.append(text)
+
+
 @app.route('/')
 def index():
     return send_file('templates/index.html')
@@ -38,6 +59,9 @@ def handle_text_update(data):
     if new_text != (text_history[-1] if text_history else ""):
         text_history.append(new_text)
         socketio.emit('text_update', {'text': new_text})  # 广播新文本
+    with open(os.path.join(app.config['TEXT_FOLDER'], app.config['TEXT_FILE_NAME']), 'w', encoding='utf-8') as f:
+        f.write(new_text)
+    f.close()
 
 
 @socketio.on('file_list_update')
@@ -77,8 +101,23 @@ def download_file(filename):
     return send_file(file_path, as_attachment=True)
 
 
+@app.route('/delete/<filename>', methods=['GET'])
+def delete_file(filename):
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    if not os.path.exists(file_path):
+        return 'File deleted successfully', 200
+    os.unlink(file_path)
+    file_list.remove(filename)
+    socketio.emit('file_list_update', {'file_list': file_list})
+    return 'File deleted successfully', 200
+
+
 if __name__ == '__main__':
     if not os.path.exists(UPLOAD_FOLDER):
         os.makedirs(UPLOAD_FOLDER)
-    remove_all_files(UPLOAD_FOLDER)
+    if not os.path.exists(TEXT_FOLDER):
+        os.makedirs(TEXT_FOLDER)
+    # remove_all_files(UPLOAD_FOLDER)
+    load_text(TEXT_FOLDER, TEXT_FILE_NAME)
+    load_all_files(UPLOAD_FOLDER)
     socketio.run(app, host='0.0.0.0', port=8080, debug=False, allow_unsafe_werkzeug=True)
